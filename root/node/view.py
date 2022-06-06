@@ -1,20 +1,29 @@
 
-
 import cairosvg
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, BmpImagePlugin, ImageFile,ImageTransform,Image
+# BmpImagePlugin.BmpRleDecoder
+# BmpImagePlugin.Image.open()
+from PIL.PngImagePlugin import PngImageFile
 from django.http import HttpResponse
-from pylunasvg import Document
+from pylunasvg import Document, Bitmap
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 import os
+from wand import image as imim
 import cairo
-
+# misc.
 from svglib import svglib
+import subprocess
 import io
+import pyinkscape
+
+from root.node import rsvg
 from root.node.models import Mode
 import numpy as np
+import json
+import base64
 from urllib import request as rr
 class Convert(APIView):
     """
@@ -40,18 +49,108 @@ class Convert(APIView):
             x = request.FILES["foto"]
             p = cairosvg.svg2svg(file_obj=x)
             ddd = Document.loadFromData(p)
+            # print(ddd.valid())
             ddd = ddd.renderToBitmap(width=int(request.data["width"]),height=int(request.data["height"]))
             yyy = np.asarray(ddd)
             imge = Image.fromarray(yyy)
-            imge.resize((int(request.data["width"]),int(request.data["height"])))
+            imge.resize((int(request.data["width"]), int(request.data["height"])))
             bytess = io.BytesIO()
-            imge.save(bytess,"PNG")
+            imge.save(bytess, "PNG")
         except Exception as e:
             print(str(e))
             rrr = False
             pass
         if rrr:
             return HttpResponse(bytess.getvalue(),content_type="image/png")
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+class Convert3(APIView):
+    def post(self,request,format=None):
+        """fungsi ini dapat menconvert gambar dengan baik dan tidak perlu tersimpan, hanya mengandalkan convert data type, akan
+           tetapi hasilnya menjadi sedikit aneh jika saya menghapus baris "if request.data["width"] != request.data["height"]:",
+           oleh karena itu widht dan height yang diinput harus tetapi sama"""
+        rrr = True
+        if request.data["width"] != request.data["height"]:
+            return Response({"Message":"tidak sama"},status=status.HTTP_400_BAD_REQUEST)
+        x = request.FILES["foto"]
+        bytess = io.BytesIO()
+        try:
+            cairosvgfile = cairosvg.svg2png(file_obj=x,write_to=bytess,output_width=int(request.data["width"]),output_height=int(request.data["height"]))
+        except Exception as e:
+            print(str(e))
+            rrr = False
+            pass
+        if rrr:
+            return HttpResponse(bytess.getvalue(),content_type="image/png")
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+class Convert4(APIView):
+    def post(self,request,format=None):
+        """saya mencoba membuat fungsi ini menggunakan rsvg wrapper, akan tetapi sangat rumit sehingga saya harus mengintall
+        GTK3 runtime, dan menambah code "os.add_dll_directory(r"C:\Program Files\GTK3-Runtime Win64\bin")" pada file rsvg, akan
+        tetapi tidak bisa karena overflow int too long to convert """
+        rrr = True
+        x = request.FILES["foto"]
+        bytess = io.BytesIO()
+        try:
+            cairosvgfile = cairosvg.svg2svg(file_obj=x)
+            p = rsvg.rsvgClass()
+            h = p.Handle(cairosvgfile)
+            print("heheway")
+            s = cairo.ImageSurface(cairo.FORMAT_ARGB32,int(request.data["width"]),int(request.data["height"]))
+            print("hehway")
+            ctx = cairo.Context(s)
+            print("hehwway")
+            h.render_cairo(ctx)
+            print("done")
+        except Exception as e:
+            print(str(e))
+            rrr = False
+            pass
+        if rrr:
+            return HttpResponse(bytess.getvalue(),content_type="image/png")
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+class Convert5(APIView):
+    def post(self,request,format=None):
+        """fungsi dapat berfungsi dengan baik, sangat cepat dan terconvert dengan sempurna, tidak masalah jika widht
+           dan height di input berbeda karena library akan menyesuaikan dan outputnya width dan heightnya sama panjang"""
+        rrr = True
+        x = request.FILES["foto"]
+        bytess = io.BytesIO()
+        try:
+            cairosvgfile = cairosvg.svg2svg(file_obj=x)
+            t = imim.Image( blob=x,height=int(request.data["height"]), width=int(request.data["width"]))
+            # t = imim.Image( blob=cairosvgfile,height=int(request.data["height"]), width=int(request.data["width"]))
+            t = t.convert("PNG")
+            t.save(bytess)
+        except Exception as e:
+            print(str(e))
+            rrr = False
+            pass
+        if rrr:
+            return HttpResponse(bytess.getvalue(),content_type="image/png")
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+class Convert6(APIView):
+    """fungsi dapat berfungsi dengan baik, sangat cepat dan terconvert dengan sempurna, tidak masalah jika widht
+       dan height di input berbeda, panjang width dan height tidak selalu sama karena output dari widht dan height
+       berdasarkan input"""
+    def post(self,request,format=None):
+        rrr = True
+        x = request.FILES["foto"]
+        bytess = io.BytesIO()
+        butes = io.BytesIO()
+        try:
+            cairosvgfile = cairosvg.svg2svg(file_obj=x)
+            t = imim.Image(blob=x, height=int(request.data["height"]), width=int(request.data["width"]))
+            t = t.convert("PNG")
+            t.save(bytess)
+            imge = Image.open(bytess)
+            imge = imge.resize((int(request.data["height"]),int(request.data["width"])))
+            imge.save(butes,"PNG")
+        except Exception as e:
+            print(str(e))
+            rrr = False
+            pass
+        if rrr:
+            return HttpResponse(butes.getvalue(),content_type="image/png")
         return Response(status=status.HTTP_400_BAD_REQUEST)
 class Convert2(APIView):
     """
